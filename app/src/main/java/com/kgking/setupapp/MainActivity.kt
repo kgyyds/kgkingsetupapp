@@ -151,7 +151,7 @@ private fun AppScaffold(
             }
 
             if (missingPackages.isNotEmpty()) {
-                statusMessages += "未找到包名: ${missingPackages.joinToString()}"
+                statusMessages += "未找到包名: ${missingPackages.joinToString()}（可能未安装，或 Android 11+ 包可见性限制）"
             }
 
             autoBindMessage = statusMessages.joinToString("\n").ifBlank { "未执行自动黑名单" }
