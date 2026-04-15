@@ -6,31 +6,22 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -45,8 +36,6 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.PrintWriter
 
-data class AppUidItem(val packageName: String, val uid: Int)
-
 data class RootResult(
     val success: Boolean,
     val idOutput: String,
@@ -54,7 +43,10 @@ data class RootResult(
     val daemonRunning: Boolean,
 )
 
-private enum class TabPage { Home, Blacklist }
+private val defaultBlacklistPackages = arrayOf(
+    "com.tencent.tmgp.pubgmhd",
+    "com.wn.app.np",
+)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -63,16 +55,15 @@ class MainActivity : ComponentActivity() {
 
         val daemonPath = extractAssetToPrivateDir("daemon")
         val blacklistToolPath = extractAssetToPrivateDir("kgking_blacklist_tool")
-        val appUidList = packageManager.getInstalledApplications(0)
-            .map { AppUidItem(it.packageName, it.uid) }
-            .sortedBy { it.packageName }
+        val appUidMap = packageManager.getInstalledApplications(0)
+            .associate { it.packageName to it.uid }
 
         setContent {
             MaterialTheme {
                 AppScaffold(
                     daemonPrivatePath = daemonPath,
                     blacklistToolPath = blacklistToolPath,
-                    appUidList = appUidList,
+                    appUidMap = appUidMap,
                 )
             }
         }
@@ -127,188 +118,114 @@ private fun runBlacklistTool(blacklistToolPath: String, args: String): ShellExec
 private fun AppScaffold(
     daemonPrivatePath: String,
     blacklistToolPath: String,
-    appUidList: List<AppUidItem>,
+    appUidMap: Map<String, Int>,
 ) {
-    var tab by remember { mutableStateOf(TabPage.Home) }
     val scope = rememberCoroutineScope()
     var rootResult by remember { mutableStateOf<RootResult?>(null) }
     var autoBindMessage by remember { mutableStateOf("等待执行...") }
     var delinkCompleted by remember { mutableStateOf(false) }
-    var blacklistKernelItems = remember { mutableStateListOf<String>() }
-    var addStatus by remember { mutableStateOf("") }
-
-    suspend fun refreshKernelList() {
-        val listResult = withContext(Dispatchers.IO) { runBlacklistTool(blacklistToolPath, "list") }
-        blacklistKernelItems.clear()
-        blacklistKernelItems.addAll(
-            listResult.output.lines()
-                .map { it.trim() }
-                .filter { it.startsWith("UID:") }
-        )
-    }
+    var actionStatus by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         rootResult = withContext(Dispatchers.IO) { RootBridge.runRootCommand(daemonPrivatePath) }
 
         if (rootResult?.success == true) {
+            val statusMessages = mutableListOf<String>()
+            val missingPackages = mutableListOf<String>()
+
+            defaultBlacklistPackages.forEach { packageName ->
+                val uid = appUidMap[packageName] ?: -1
+                if (uid <= 0) {
+                    missingPackages += packageName
+                } else {
+                    val addResult = withContext(Dispatchers.IO) {
+                        runBlacklistTool(blacklistToolPath, "add $uid")
+                    }
+                    val message = if (addResult.code == 0) {
+                        "$packageName (UID $uid): 添加成功"
+                    } else {
+                        "$packageName (UID $uid): 添加失败 -> ${addResult.output.trim()}"
+                    }
+                    statusMessages += message
+                }
+            }
+
+            if (missingPackages.isNotEmpty()) {
+                statusMessages += "未找到包名: ${missingPackages.joinToString()}"
+            }
+
+            autoBindMessage = statusMessages.joinToString("\n").ifBlank { "未执行自动黑名单" }
+
             val check = withContext(Dispatchers.IO) { runBlacklistTool(blacklistToolPath, "list") }
             if (check.output.contains("无法打开 /dev/kgking")) {
                 delinkCompleted = true
             }
-
-            val pubgmUid = appUidList.firstOrNull { it.packageName == "com.tencent.tmgp.pubgmhd" }?.uid
-            if (pubgmUid != null) {
-                val addResult = withContext(Dispatchers.IO) {
-                    runBlacklistTool(blacklistToolPath, "add $pubgmUid")
-                }
-                autoBindMessage = if (addResult.code == 0) addResult.output.ifBlank { "已尝试自动添加 PUBG UID: $pubgmUid" } else "添加失败: ${addResult.output}"
-            } else {
-                autoBindMessage = "未找到 com.tencent.tmgp.pubgmhd"
-            }
-            refreshKernelList()
         }
     }
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        bottomBar = {
-            BottomAppBar {
-                NavigationBarItem(
-                    selected = tab == TabPage.Home,
-                    onClick = { tab = TabPage.Home },
-                    icon = { androidx.compose.material3.Icon(Icons.Default.Home, contentDescription = null) },
-                    label = { Text("主页") },
-                )
-                NavigationBarItem(
-                    selected = tab == TabPage.Blacklist,
-                    onClick = { tab = TabPage.Blacklist },
-                    icon = { androidx.compose.material3.Icon(Icons.Default.List, contentDescription = null) },
-                    label = { Text("黑名单管理") },
-                )
+    Scaffold(modifier = Modifier.fillMaxSize()) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item {
+                Text("KINGSETUP", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             }
-        },
-    ) { padding ->
-        when (tab) {
-            TabPage.Home -> {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    item {
-                        Text("KINGSETUP", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                    }
 
-                    if (delinkCompleted) {
-                        item {
-                            Card(
-                                colors = CardDefaults.cardColors(
-                                    containerColor = Color(0xFFB00020),
-                                    contentColor = Color.White,
-                                ),
-                            ) {
-                                Text("已完成脱链脱表", modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.titleMedium)
-                            }
-                        }
-                    }
-
-                    item {
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text("Root 状态", style = MaterialTheme.typography.titleMedium)
-                                Spacer(Modifier.height(8.dp))
-                                Text(rootResult?.details ?: "正在执行...", style = MaterialTheme.typography.bodyMedium)
-                                Spacer(Modifier.height(8.dp))
-                                Text(rootResult?.idOutput?.ifBlank { "暂无输出" } ?: "等待输出...")
-                            }
-                        }
-                    }
-
-                    item {
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text("自动添加 PUBG 黑名单结果", style = MaterialTheme.typography.titleMedium)
-                                Spacer(Modifier.height(8.dp))
-                                Text(autoBindMessage)
-                            }
-                        }
-                    }
-
-                    item {
-                        Button(onClick = {
-                            scope.launch {
-                                val result = withContext(Dispatchers.IO) { runBlacklistTool(blacklistToolPath, "hide") }
-                                addStatus = result.output
-                                delinkCompleted = result.output.contains("已隐藏")
-                            }
-                        }) {
-                            Text("一键断链脱表")
-                        }
+            if (delinkCompleted) {
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFB00020),
+                            contentColor = Color.White,
+                        ),
+                    ) {
+                        Text("已完成脱链脱表", modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.titleMedium)
                     }
                 }
             }
 
-            TabPage.Blacklist -> {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    item {
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text("内核模块黑名单 UID", style = MaterialTheme.typography.titleMedium)
-                                Spacer(Modifier.height(8.dp))
-                                if (blacklistKernelItems.isEmpty()) {
-                                    Text("暂无数据")
-                                } else {
-                                    blacklistKernelItems.forEach { Text(it) }
-                                }
-                                Spacer(Modifier.height(8.dp))
-                                TextButton(onClick = {
-                                    scope.launch { refreshKernelList() }
-                                }) {
-                                    Text("刷新")
-                                }
-                            }
-                        }
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Root 状态", style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(8.dp))
+                        Text(rootResult?.details ?: "正在执行...", style = MaterialTheme.typography.bodyMedium)
+                        Spacer(Modifier.height(8.dp))
+                        Text(rootResult?.idOutput?.ifBlank { "暂无输出" } ?: "等待输出...")
                     }
+                }
+            }
 
-                    items(appUidList) { app ->
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(app.packageName, style = MaterialTheme.typography.bodyMedium)
-                                    Text("UID: ${app.uid}")
-                                }
-                                Button(onClick = {
-                                    scope.launch {
-                                        val result = withContext(Dispatchers.IO) { runBlacklistTool(blacklistToolPath, "add ${app.uid}") }
-                                        addStatus = result.output
-                                        refreshKernelList()
-                                    }
-                                }) {
-                                    Text("加入")
-                                }
-                            }
-                        }
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("默认黑名单添加结果", style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(8.dp))
+                        Text(autoBindMessage)
                     }
+                }
+            }
 
-                    if (addStatus.isNotBlank()) {
-                        item {
-                            Card(modifier = Modifier.fillMaxWidth()) {
-                                Text(addStatus, modifier = Modifier.padding(12.dp))
-                            }
-                        }
+            item {
+                Button(onClick = {
+                    scope.launch {
+                        val result = withContext(Dispatchers.IO) { runBlacklistTool(blacklistToolPath, "hide") }
+                        actionStatus = result.output
+                        delinkCompleted = result.output.contains("已隐藏")
+                    }
+                }) {
+                    Text("一键断链脱表")
+                }
+            }
+
+            if (actionStatus.isNotBlank()) {
+                item {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Text(actionStatus, modifier = Modifier.padding(12.dp))
                     }
                 }
             }
