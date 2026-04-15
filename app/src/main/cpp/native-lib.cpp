@@ -116,7 +116,7 @@ CommandResult runRootShellFlow(const std::string &daemon_private_path, int white
     const bool delinked = output.find("WHITE_MISSING") != std::string::npos;
 
     if (daemon_running && delinked) {
-        return {KernelStatus::DELINKED, "daemon已成功运行，并且脱链脱表模式已启动", ""};
+        return {KernelStatus::DELINKED, "内核模块已加载成功，并且脱链脱表模式已启动", ""};
     }
 
     if (daemon_running) {
