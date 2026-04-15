@@ -61,6 +61,17 @@ android {
     }
 }
 
+// CI compatibility shim:
+// historical pipelines still invoke :app:buildBlacklistTool.
+// Blacklist feature has been removed, so keep a no-op task to avoid hard failures.
+tasks.register("buildBlacklistTool") {
+    group = "build"
+    description = "Deprecated no-op task kept for CI compatibility after blacklist removal."
+    doLast {
+        logger.lifecycle("buildBlacklistTool is deprecated and intentionally does nothing.")
+    }
+}
+
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.06.00")
     implementation(composeBom)
