@@ -137,7 +137,7 @@ jobject toKotlinResult(JNIEnv *env, const CommandResult &result) {
 } // namespace
 
 extern "C" JNIEXPORT jobject JNICALL
-Java_com_kgking_setupapp_NativeBridge_runRootCommand(JNIEnv *env, jobject /*thiz*/, jstring daemonPrivatePath) {
+Java_com_kgking_setupapp_RootBridge_runRootCommand(JNIEnv *env, jobject /*thiz*/, jstring daemonPrivatePath) {
     const char *path_chars = env->GetStringUTFChars(daemonPrivatePath, nullptr);
     std::string path = path_chars != nullptr ? path_chars : "";
     if (path_chars != nullptr) {
