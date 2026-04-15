@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import java.io.File
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,9 +40,24 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             MaterialTheme {
-                RootShellScreen()
+                RootShellScreen(
+                    daemonPrivatePath = extractDaemonToPrivateDir(),
+                )
             }
         }
+    }
+
+    private fun extractDaemonToPrivateDir(): String {
+        val daemonFile = File(filesDir, "daemon")
+        assets.open("daemon").use { input ->
+            daemonFile.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        }
+        daemonFile.setExecutable(true, false)
+        daemonFile.setReadable(true, false)
+        daemonFile.setWritable(true, true)
+        return daemonFile.absolutePath
     }
 }
 
@@ -55,6 +71,7 @@ data class RootResult(
     val success: Boolean,
     val idOutput: String,
     val details: String,
+    val daemonRunning: Boolean,
 )
 
 object NativeBridge {
@@ -62,15 +79,15 @@ object NativeBridge {
         System.loadLibrary("kgking_native")
     }
 
-    external fun runRootCommand(): RootResult
+    external fun runRootCommand(daemonPrivatePath: String): RootResult
 }
 
 @Composable
-fun RootShellScreen() {
+fun RootShellScreen(daemonPrivatePath: String) {
     var result by remember { mutableStateOf<RootResult?>(null) }
 
     LaunchedEffect(Unit) {
-        result = NativeBridge.runRootCommand()
+        result = NativeBridge.runRootCommand(daemonPrivatePath)
     }
 
     val status = when {
@@ -100,7 +117,7 @@ fun RootShellScreen() {
             verticalArrangement = Arrangement.Top,
         ) {
             Text(
-                text = "KGKing Root Setup",
+                text = "KINGSETUP",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
             )
@@ -160,6 +177,27 @@ fun RootShellScreen() {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = result?.idOutput?.ifBlank { "暂无输出" } ?: "等待 native 层执行完成...",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "daemon 状态",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = when {
+                            result == null -> "等待检查 daemon 状态..."
+                            result?.daemonRunning == true -> "daemon 已经在运行"
+                            else -> "daemon 未运行或启动失败"
+                        },
                         style = MaterialTheme.typography.bodyLarge,
                     )
                 }
