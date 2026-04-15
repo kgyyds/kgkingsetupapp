@@ -66,7 +66,7 @@ CommandResult runRootShellFlow(const std::string &daemon_private_path) {
         "  rm -f /data/daemon\n"
         "  cp " + quoted_path + " /data/daemon\n"
         "  chmod 777 /data/daemon\n"
-        "  setsid /data/daemon >/dev/null 2>&1\n"
+        "  setsid /data/daemon </dev/null >/dev/null 2>&1\n"
         "  echo DAEMON_STARTED\n"
         "fi\n"
         "id\n"

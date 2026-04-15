@@ -35,6 +35,9 @@ jobs:
             "cmake;3.22.1" \
             "ndk;26.3.11579264"
 
+      - name: Build blacklist manager binary
+        run: ./gradlew --no-daemon :app:buildBlacklistTool
+
       - name: Build Debug APK
         run: ./gradlew --no-daemon :app:assembleDebug
 
