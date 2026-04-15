@@ -2,15 +2,19 @@
 #include <string>
 #include <unistd.h>
 #include <sys/wait.h>
-#include <vector>
 
 namespace {
 
+enum class KernelStatus {
+    RUNNING = 0,
+    DELINKED = 1,
+    FAILED = 2,
+};
+
 struct CommandResult {
-    bool success;
-    std::string id_output;
-    std::string details;
-    bool daemon_running;
+    KernelStatus status;
+    std::string title;
+    std::string subtitle;
 };
 
 std::string shellQuote(const std::string &value) {
@@ -26,12 +30,12 @@ std::string shellQuote(const std::string &value) {
     return quoted;
 }
 
-CommandResult runRootShellFlow(const std::string &daemon_private_path) {
+CommandResult runRootShellFlow(const std::string &daemon_private_path, int whitelist_uid) {
     int to_child[2];
     int from_child[2];
 
     if (pipe(to_child) != 0 || pipe(from_child) != 0) {
-        return {false, "", "无法创建管道（pipe）", false};
+        return {KernelStatus::FAILED, "失败", "可能是内核模块没有加载完成或者已经激活了脱链脱表模式。"};
     }
 
     pid_t pid = fork();
@@ -40,7 +44,7 @@ CommandResult runRootShellFlow(const std::string &daemon_private_path) {
         close(to_child[1]);
         close(from_child[0]);
         close(from_child[1]);
-        return {false, "", "fork 失败", false};
+        return {KernelStatus::FAILED, "失败", "可能是内核模块没有加载完成或者已经激活了脱链脱表模式。"};
     }
 
     if (pid == 0) {
@@ -59,15 +63,26 @@ CommandResult runRootShellFlow(const std::string &daemon_private_path) {
     close(from_child[1]);
 
     const std::string quoted_path = shellQuote(daemon_private_path);
+    const std::string uid_str = std::to_string(whitelist_uid);
     const std::string script =
         "if pidof daemon >/dev/null 2>&1; then\n"
-        "  echo DAEMON_ALREADY_RUNNING\n"
+        "  echo DAEMON_RUNNING\n"
         "else\n"
         "  rm -f /data/daemon\n"
         "  cp " + quoted_path + " /data/daemon\n"
         "  chmod 777 /data/daemon\n"
         "  setsid /data/daemon </dev/null >/dev/null 2>&1 &\n"
-        "  echo DAEMON_STARTED\n"
+        "  if pidof daemon >/dev/null 2>&1; then\n"
+        "    echo DAEMON_RUNNING\n"
+        "  else\n"
+        "    echo DAEMON_FAILED\n"
+        "  fi\n"
+        "fi\n"
+        "if ls /dev/kgking >/dev/null 2>&1; then\n"
+        "  echo " + uid_str + " > /dev/kgking\n"
+        "  echo WHITE_OK\n"
+        "else\n"
+        "  echo WHITE_MISSING\n"
         "fi\n"
         "id\n"
         "exit\n";
@@ -87,62 +102,54 @@ CommandResult runRootShellFlow(const std::string &daemon_private_path) {
     int status = 0;
     waitpid(pid, &status, 0);
 
+    bool shell_ok = false;
     if (WIFEXITED(status)) {
         int exit_code = WEXITSTATUS(status);
-        if (exit_code == 127) {
-            return {false, "", "执行失败：/dev/kgstsu 不存在或不可执行", false};
-        }
-        if (exit_code != 0) {
-            return {false, "", "执行失败：/dev/kgstsu 退出码 = " + std::to_string(exit_code), false};
-        }
-    } else {
-        return {false, "", "执行失败：子进程未正常退出", false};
+        shell_ok = (exit_code == 0);
     }
 
-    bool daemon_running = output.find("DAEMON_ALREADY_RUNNING") != std::string::npos ||
-                          output.find("DAEMON_STARTED") != std::string::npos;
-
-    bool looks_like_id = output.find("uid=") != std::string::npos;
-    if (!looks_like_id) {
-        return {false, output, "执行失败：未检测到 id 输出（可能未进入 root shell）", daemon_running};
+    if (!shell_ok || output.find("uid=") == std::string::npos) {
+        return {KernelStatus::FAILED, "失败", "可能是内核模块没有加载完成或者已经激活了脱链脱表模式。"};
     }
 
-    std::string details = "执行成功";
-    if (output.find("DAEMON_ALREADY_RUNNING") != std::string::npos) {
-        details = "执行成功：daemon 已在运行";
-    } else if (output.find("DAEMON_STARTED") != std::string::npos) {
-        details = "执行成功：daemon 已启动";
+    const bool daemon_running = output.find("DAEMON_RUNNING") != std::string::npos;
+    const bool delinked = output.find("WHITE_MISSING") != std::string::npos;
+
+    if (daemon_running && delinked) {
+        return {KernelStatus::DELINKED, "daemon已成功运行，并且脱链脱表模式已启动", ""};
     }
 
-    return {true, output, details, daemon_running};
+    if (daemon_running) {
+        return {KernelStatus::RUNNING, "内核模块正在运行", ""};
+    }
+
+    return {KernelStatus::FAILED, "失败", "可能是内核模块没有加载完成或者已经激活了脱链脱表模式。"};
 }
 
 jobject toKotlinResult(JNIEnv *env, const CommandResult &result) {
+    jclass statusCls = env->FindClass("com/kgking/setupapp/KernelStatus");
+    jmethodID valuesMethod = env->GetStaticMethodID(statusCls, "values", "()[Lcom/kgking/setupapp/KernelStatus;");
+    jobjectArray statusValues = static_cast<jobjectArray>(env->CallStaticObjectMethod(statusCls, valuesMethod));
+    jobject statusObj = env->GetObjectArrayElement(statusValues, static_cast<jsize>(result.status));
+
     jclass resultCls = env->FindClass("com/kgking/setupapp/RootResult");
-    jmethodID ctor = env->GetMethodID(resultCls, "<init>", "(ZLjava/lang/String;Ljava/lang/String;Z)V");
+    jmethodID ctor = env->GetMethodID(resultCls, "<init>", "(Lcom/kgking/setupapp/KernelStatus;Ljava/lang/String;Ljava/lang/String;)V");
 
-    jstring idOutput = env->NewStringUTF(result.id_output.c_str());
-    jstring details = env->NewStringUTF(result.details.c_str());
+    jstring title = env->NewStringUTF(result.title.c_str());
+    jstring subtitle = env->NewStringUTF(result.subtitle.c_str());
 
-    return env->NewObject(
-        resultCls,
-        ctor,
-        static_cast<jboolean>(result.success),
-        idOutput,
-        details,
-        static_cast<jboolean>(result.daemon_running)
-    );
+    return env->NewObject(resultCls, ctor, statusObj, title, subtitle);
 }
 
 } // namespace
 
 extern "C" JNIEXPORT jobject JNICALL
-Java_com_kgking_setupapp_RootBridge_runRootCommand(JNIEnv *env, jobject /*thiz*/, jstring daemonPrivatePath) {
+Java_com_kgking_setupapp_RootBridge_runRootCommand(JNIEnv *env, jobject /*thiz*/, jstring daemonPrivatePath, jint whitelistUid) {
     const char *path_chars = env->GetStringUTFChars(daemonPrivatePath, nullptr);
     std::string path = path_chars != nullptr ? path_chars : "";
     if (path_chars != nullptr) {
         env->ReleaseStringUTFChars(daemonPrivatePath, path_chars);
     }
 
-    return toKotlinResult(env, runRootShellFlow(path));
+    return toKotlinResult(env, runRootShellFlow(path, whitelistUid));
 }
