@@ -19,7 +19,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+            abiFilters += listOf("arm64-v8a")
         }
         externalNativeBuild {
             cmake {
@@ -93,7 +93,9 @@ val buildBlacklistTool by tasks.registering {
             commandLine(
                 clang.absolutePath,
                 "-O2",
-                "-static",
+                "-fPIE",
+                "-pie",
+                "-Wl,-z,max-page-size=4096",
                 "-s",
                 rootProject.file("tools/kgking_blacklist_tool.c").absolutePath,
                 "-o",
