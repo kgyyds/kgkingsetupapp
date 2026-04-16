@@ -7,3 +7,7 @@ build/
 */build/
 .cxx/
 .externalNativeBuild/
+*.jks
+*.keystore
+release-keystore.jks
+release-keystore.b64

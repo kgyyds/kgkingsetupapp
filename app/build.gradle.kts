@@ -8,6 +8,15 @@ android {
     compileSdk = 34
     ndkVersion = "26.3.11579264"
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("release-keystore.jks")
+            storePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD") ?: "kgking123456"
+            keyAlias = System.getenv("RELEASE_KEY_ALIAS") ?: "kgking"
+            keyPassword = System.getenv("RELEASE_KEY_PASSWORD") ?: "kgking123456"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.kgking.setupapp"
         minSdk = 26
@@ -28,6 +37,7 @@ android {
 
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
