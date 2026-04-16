@@ -6,9 +6,8 @@
 namespace {
 
 enum class KernelStatus {
-    RUNNING = 0,
-    DELINKED = 1,
-    FAILED = 2,
+    SUCCESS = 0,
+    FAILED = 1,
 };
 
 struct CommandResult {
@@ -30,12 +29,17 @@ std::string shellQuote(const std::string &value) {
     return quoted;
 }
 
-CommandResult runRootShellFlow(const std::string &daemon_private_path, int whitelist_uid) {
+struct ShellResult {
+    bool success;
+    std::string output;
+};
+
+ShellResult runSingleShell(const std::string &script) {
     int to_child[2];
     int from_child[2];
 
     if (pipe(to_child) != 0 || pipe(from_child) != 0) {
-        return {KernelStatus::FAILED, "失败", "可能是内核模块没有加载完成或者已经激活了脱链脱表模式。"};
+        return {false, ""};
     }
 
     pid_t pid = fork();
@@ -44,7 +48,7 @@ CommandResult runRootShellFlow(const std::string &daemon_private_path, int white
         close(to_child[1]);
         close(from_child[0]);
         close(from_child[1]);
-        return {KernelStatus::FAILED, "失败", "可能是内核模块没有加载完成或者已经激活了脱链脱表模式。"};
+        return {false, ""};
     }
 
     if (pid == 0) {
@@ -61,31 +65,6 @@ CommandResult runRootShellFlow(const std::string &daemon_private_path, int white
 
     close(to_child[0]);
     close(from_child[1]);
-
-    const std::string quoted_path = shellQuote(daemon_private_path);
-    const std::string uid_str = std::to_string(whitelist_uid);
-    const std::string script =
-        "if pidof daemon >/dev/null 2>&1; then\n"
-        "  echo DAEMON_RUNNING\n"
-        "else\n"
-        "  rm -f /data/daemon\n"
-        "  cp " + quoted_path + " /data/daemon\n"
-        "  chmod 777 /data/daemon\n"
-        "  setsid /data/daemon </dev/null >/dev/null 2>&1 &\n"
-        "  if pidof daemon >/dev/null 2>&1; then\n"
-        "    echo DAEMON_RUNNING\n"
-        "  else\n"
-        "    echo DAEMON_FAILED\n"
-        "  fi\n"
-        "fi\n"
-        "if ls /dev/kgking >/dev/null 2>&1; then\n"
-        "  echo " + uid_str + " > /dev/kgking\n"
-        "  echo WHITE_OK\n"
-        "else\n"
-        "  echo WHITE_MISSING\n"
-        "fi\n"
-        "id\n"
-        "exit\n";
 
     ssize_t written = write(to_child[1], script.c_str(), script.size());
     (void)written;
@@ -108,22 +87,55 @@ CommandResult runRootShellFlow(const std::string &daemon_private_path, int white
         shell_ok = (exit_code == 0);
     }
 
-    if (!shell_ok || output.find("uid=") == std::string::npos) {
-        return {KernelStatus::FAILED, "失败", "可能是内核模块没有加载完成或者已经激活了脱链脱表模式。"};
+    return {shell_ok, output};
+}
+
+CommandResult runRootShellFlow(const std::string &daemon_private_path, int whitelist_uid) {
+    const std::string quoted_path = shellQuote(daemon_private_path);
+
+    // Shell 1: 检查/启动 daemon
+    const std::string daemon_script =
+        "if pidof daemon >/dev/null 2>&1; then\n"
+        "  echo DAEMON_RUNNING\n"
+        "else\n"
+        "  rm -f /data/daemon\n"
+        "  cp " + quoted_path + " /data/daemon\n"
+        "  chmod 777 /data/daemon\n"
+        "  setsid /data/daemon </dev/null >/dev/null 2>&1 &\n"
+        "  sleep 1\n"
+        "  if pidof daemon >/dev/null 2>&1; then\n"
+        "    echo DAEMON_RUNNING\n"
+        "  else\n"
+        "    echo DAEMON_FAILED\n"
+        "  fi\n"
+        "fi\n"
+        "id\n"
+        "exit\n";
+
+    ShellResult daemon_result = runSingleShell(daemon_script);
+
+    if (!daemon_result.success || daemon_result.output.find("uid=") == std::string::npos) {
+        return {KernelStatus::FAILED, "BOOT加载失败", "可能是内核模块没有加载完成或者已经激活了脱链脱表模式。"};
     }
 
-    const bool daemon_running = output.find("DAEMON_RUNNING") != std::string::npos;
-    const bool delinked = output.find("WHITE_MISSING") != std::string::npos;
+    const bool daemon_running = daemon_result.output.find("DAEMON_RUNNING") != std::string::npos;
 
-    if (daemon_running && delinked) {
-        return {KernelStatus::DELINKED, "内核模块已加载成功，并且脱链脱表模式已启动", ""};
+    if (!daemon_running) {
+        return {KernelStatus::FAILED, "BOOT加载失败", "可能是内核模块没有加载完成或者已经激活了脱链脱表模式。"};
     }
 
-    if (daemon_running) {
-        return {KernelStatus::RUNNING, "内核模块正在运行", ""};
-    }
+    // Shell 2: 独立设置 UID 到 /dev/kgking
+    const std::string uid_str = std::to_string(whitelist_uid);
+    const std::string whitelist_script =
+        "if ls /dev/kgking >/dev/null 2>&1; then\n"
+        "  echo " + uid_str + " > /dev/kgking\n"
+        "fi\n"
+        "exit\n";
 
-    return {KernelStatus::FAILED, "失败", "可能是内核模块没有加载完成或者已经激活了脱链脱表模式。"};
+    // 独立执行，不影响主判断
+    runSingleShell(whitelist_script);
+
+    return {KernelStatus::SUCCESS, "BOOT加载成功", ""};
 }
 
 jobject toKotlinResult(JNIEnv *env, const CommandResult &result) {

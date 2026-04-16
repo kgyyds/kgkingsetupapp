@@ -32,8 +32,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 enum class KernelStatus {
-    RUNNING,
-    DELINKED,
+    SUCCESS,
     FAILED,
 }
 
@@ -104,8 +103,7 @@ private fun AppScaffold(
     )
 
     val cardColor = when (displayResult.status) {
-        KernelStatus.RUNNING -> Color(0xFF2E7D32)
-        KernelStatus.DELINKED -> Color(0xFFEF6C00)
+        KernelStatus.SUCCESS -> Color(0xFF2E7D32)
         KernelStatus.FAILED -> Color(0xFFB00020)
     }
 
