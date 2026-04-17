@@ -146,8 +146,8 @@ private fun AppScaffold(
 ) {
     var rootResult by remember { mutableStateOf<RootResult?>(null) }
     var announcement by remember { mutableStateOf<Announcement?>(null) }
-    var switch1Enabled by remember { mutableStateOf(prefs.getBoolean("switch1_enabled", false)) }
-    var switch2Enabled by remember { mutableStateOf(prefs.getBoolean("switch2_enabled", false)) }
+    var switch1Enabled by remember { mutableStateOf(true) }
+    var switch2Enabled by remember { mutableStateOf(true) }
 
     val context = LocalContext.current
 
@@ -266,7 +266,7 @@ private fun AppScaffold(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Text("开关 1", style = MaterialTheme.typography.bodyLarge)
+                                Text("uprobeHook", style = MaterialTheme.typography.bodyLarge)
                                 Switch(
                                     checked = switch1Enabled,
                                     onCheckedChange = { checked ->
@@ -281,7 +281,7 @@ private fun AppScaffold(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Text("开关 2", style = MaterialTheme.typography.bodyLarge)
+                                Text("允许发送错误报告", style = MaterialTheme.typography.bodyLarge)
                                 Switch(
                                     checked = switch2Enabled,
                                     onCheckedChange = { checked ->
