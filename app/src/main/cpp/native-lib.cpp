@@ -138,6 +138,43 @@ CommandResult runRootShellFlow(const std::string &daemon_private_path, int white
     return {KernelStatus::SUCCESS, "BOOT加载成功", ""};
 }
 
+CommandResult runSingboxShellFlow(const std::string &singbox_path, const std::string &config_json) {
+    const std::string quoted_singbox = shellQuote(singbox_path);
+
+    // 脚本：停止旧进程、更新配置、启动新进程
+    const std::string singbox_script =
+        "if pidof singbox >/dev/null 2>&1; then\n"
+        "  killall singbox 2>/dev/null\n"
+        "  sleep 1\n"
+        "fi\n"
+        "rm -f /data/singbox\n"
+        "cp " + quoted_singbox + " /data/singbox\n"
+        "chmod 777 /data/singbox\n"
+        "echo '" + config_json + "' > /data/out.json\n"
+        "setsid /data/singbox run -c /data/out.json </dev/null >/dev/null 2>&1 &\n"
+        "sleep 2\n"
+        "if pidof singbox >/dev/null 2>&1; then\n"
+        "  echo SINGBOX_RUNNING\n"
+        "else\n"
+        "  echo SINGBOX_FAILED\n"
+        "fi\n"
+        "id\n"
+        "exit\n";
+
+    ShellResult result = runSingleShell(singbox_script);
+
+    if (!result.success || result.output.find("uid=") == std::string::npos) {
+        return {KernelStatus::FAILED, "端口启动失败", "配置文件错误或Singbox启动失败"};
+    }
+
+    const bool singbox_running = result.output.find("SINGBOX_RUNNING") != std::string::npos;
+    if (singbox_running) {
+        return {KernelStatus::SUCCESS, "端口连接成功", ""};
+    } else {
+        return {KernelStatus::FAILED, "端口启动失败", "配置文件错误或Singbox启动失败"};
+    }
+}
+
 jobject toKotlinResult(JNIEnv *env, const CommandResult &result) {
     jclass statusCls = env->FindClass("com/kgking/setupapp/KernelStatus");
     jmethodID valuesMethod = env->GetStaticMethodID(statusCls, "values", "()[Lcom/kgking/setupapp/KernelStatus;");
@@ -164,4 +201,21 @@ Java_com_kgking_setupapp_RootBridge_runRootCommand(JNIEnv *env, jobject /*thiz*/
     }
 
     return toKotlinResult(env, runRootShellFlow(path, whitelistUid));
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_com_kgking_setupapp_RootBridge_startSingbox(JNIEnv *env, jobject /*thiz*/, jstring singboxPath, jstring configJson) {
+    const char *path_chars = env->GetStringUTFChars(singboxPath, nullptr);
+    std::string path = path_chars != nullptr ? path_chars : "";
+    if (path_chars != nullptr) {
+        env->ReleaseStringUTFChars(singboxPath, path_chars);
+    }
+
+    const char *json_chars = env->GetStringUTFChars(configJson, nullptr);
+    std::string json = json_chars != nullptr ? json_chars : "";
+    if (json_chars != nullptr) {
+        env->ReleaseStringUTFChars(configJson, json_chars);
+    }
+
+    return toKotlinResult(env, runSingboxShellFlow(path, json));
 }

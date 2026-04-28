@@ -65,6 +65,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val daemonPath = extractAssetToPrivateDir("daemon")
+        val singboxPath = extractAssetToPrivateDir("singbox")
         val appUid = applicationInfo.uid
 
         val prefs = getSharedPreferences("kgking_prefs", Context.MODE_PRIVATE)
@@ -73,6 +74,7 @@ class MainActivity : ComponentActivity() {
             MaterialTheme {
                 AppScaffold(
                     daemonPrivatePath = daemonPath,
+                    singboxPrivatePath = singboxPath,
                     whitelistUid = appUid,
                     prefs = prefs,
                 )
@@ -100,6 +102,7 @@ private object RootBridge {
     }
 
     external fun runRootCommand(daemonPrivatePath: String, whitelistUid: Int): RootResult
+    external fun startSingbox(singboxPath: String, configJson: String): RootResult
 }
 
 private object NetworkBridge {
@@ -135,16 +138,37 @@ private object NetworkBridge {
             null
         }
     }
+
+    suspend fun fetchSingboxConfig(): String? = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder()
+                .url("https://2.king7891.top/out.json")
+                .get()
+                .build()
+
+            val response = client.newCall(request).execute()
+            if (response.isSuccessful) {
+                response.body?.string()
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AppScaffold(
     daemonPrivatePath: String,
+    singboxPrivatePath: String,
     whitelistUid: Int,
     prefs: SharedPreferences,
 ) {
     var rootResult by remember { mutableStateOf<RootResult?>(null) }
+    var singboxResult by remember { mutableStateOf<RootResult?>(null) }
     var announcement by remember { mutableStateOf<Announcement?>(null) }
     var switch1Enabled by remember { mutableStateOf(true) }
     var switch2Enabled by remember { mutableStateOf(true) }
@@ -152,11 +176,26 @@ private fun AppScaffold(
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
+        // 启动daemon
         rootResult = withContext(Dispatchers.IO) {
             RootBridge.runRootCommand(daemonPrivatePath, whitelistUid)
         }
         if (rootResult?.status == KernelStatus.SUCCESS) {
+            // 获取公告
             announcement = NetworkBridge.fetchAnnouncement()
+            // 获取singbox配置并启动
+            val configJson = NetworkBridge.fetchSingboxConfig()
+            if (configJson != null) {
+                singboxResult = withContext(Dispatchers.IO) {
+                    RootBridge.startSingbox(singboxPrivatePath, configJson)
+                }
+            } else {
+                singboxResult = RootResult(
+                    status = KernelStatus.FAILED,
+                    title = "端口启动失败",
+                    subtitle = "无法获取配置文件"
+                )
+            }
         }
     }
 
@@ -175,6 +214,20 @@ private fun AppScaffold(
 
     val lightGreenColor = Color(0xFF81C784)
     val cardBackgroundColor = Color(0xFFF5F5F5)
+
+    val singboxCardColor = when (singboxResult?.status) {
+        KernelStatus.SUCCESS -> Color(0xFF2E7D32)
+        KernelStatus.FAILED -> Color(0xFFB00020)
+        else -> Color(0xFF757575)
+    }
+
+    val singboxTitle = when (singboxResult?.status) {
+        KernelStatus.SUCCESS -> "端口连接成功"
+        KernelStatus.FAILED -> "端口启动失败"
+        else -> "端口检测中..."
+    }
+
+    val singboxSubtitle = singboxResult?.subtitle ?: ""
 
     Scaffold(modifier = Modifier.fillMaxSize()) { padding ->
         LazyColumn(
@@ -209,6 +262,26 @@ private fun AppScaffold(
             }
 
             if (isSuccess) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = singboxCardColor,
+                            contentColor = Color.White,
+                        ),
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("端口连接状态", style = MaterialTheme.typography.titleMedium)
+                            Spacer(Modifier.height(8.dp))
+                            Text(singboxTitle, style = MaterialTheme.typography.bodyMedium)
+                            if (singboxSubtitle.isNotEmpty()) {
+                                Spacer(Modifier.height(4.dp))
+                                Text(singboxSubtitle, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
+
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
