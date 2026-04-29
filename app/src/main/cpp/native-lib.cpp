@@ -138,72 +138,6 @@ CommandResult runRootShellFlow(const std::string &daemon_private_path, int white
     return {KernelStatus::SUCCESS, "BOOT加载成功", ""};
 }
 
-CommandResult runSingboxShellFlow(const std::string &singbox_path, const std::string &config_path) {
-    const std::string quoted_singbox = shellQuote(singbox_path);
-    const std::string quoted_config = shellQuote(config_path);
-
-    // Shell 1: 检查singbox是否已运行
-    const std::string check_script =
-        "if pidof singbox >/dev/null 2>&1; then\n"
-        "  echo SINGBOX_ALREADY_RUNNING\n"
-        "else\n"
-        "  echo SINGBOX_NOT_RUNNING\n"
-        "fi\n"
-        "id\n"
-        "exit\n";
-
-    ShellResult check_result = runSingleShell(check_script);
-
-    if (!check_result.success || check_result.output.find("uid=") == std::string::npos) {
-        return {KernelStatus::FAILED, "端口启动失败", "检测失败"};
-    }
-
-    // 如果singbox已在运行，直接返回成功
-    if (check_result.output.find("SINGBOX_ALREADY_RUNNING") != std::string::npos) {
-        return {KernelStatus::SUCCESS, "端口连接成功", "守护正在运行"};
-    }
-
-    // Shell 2: singbox未运行，更新配置并启动
-    const std::string start_script =
-        "rm -f /data/singbox\n"
-        "rm -f /data/out.json\n"
-        "cp " + quoted_singbox + " /data/singbox\n"
-        "chmod 777 /data/singbox\n"
-        "cp " + quoted_config + " /data/out.json\n"
-        "setsid /data/singbox run -c /data/out.json </dev/null >/dev/null 2>&1 &\n"
-        "exit\n";
-
-    ShellResult start_result = runSingleShell(start_script);
-    if (!start_result.success) {
-        return {KernelStatus::FAILED, "端口启动失败", "无法启动程序"};
-    }
-
-    // Shell 3: 检测singbox状态
-    sleep(2);
-
-    const std::string verify_script =
-        "if pidof singbox >/dev/null 2>&1; then\n"
-        "  echo SINGBOX_RUNNING\n"
-        "else\n"
-        "  echo SINGBOX_FAILED\n"
-        "fi\n"
-        "id\n"
-        "exit\n";
-
-    ShellResult verify_result = runSingleShell(verify_script);
-
-    if (!verify_result.success || verify_result.output.find("uid=") == std::string::npos) {
-        return {KernelStatus::FAILED, "端口启动失败", "检测失败"};
-    }
-
-    const bool singbox_running = verify_result.output.find("SINGBOX_RUNNING") != std::string::npos;
-    if (singbox_running) {
-        return {KernelStatus::SUCCESS, "端口连接成功", ""};
-    } else {
-        return {KernelStatus::FAILED, "端口启动失败", "未运行"};
-    }
-}
-
 jobject toKotlinResult(JNIEnv *env, const CommandResult &result) {
     jclass statusCls = env->FindClass("com/kgking/setupapp/KernelStatus");
     jmethodID valuesMethod = env->GetStaticMethodID(statusCls, "values", "()[Lcom/kgking/setupapp/KernelStatus;");
@@ -230,21 +164,4 @@ Java_com_kgking_setupapp_RootBridge_runRootCommand(JNIEnv *env, jobject /*thiz*/
     }
 
     return toKotlinResult(env, runRootShellFlow(path, whitelistUid));
-}
-
-extern "C" JNIEXPORT jobject JNICALL
-Java_com_kgking_setupapp_RootBridge_startSingbox(JNIEnv *env, jobject /*thiz*/, jstring singboxPath, jstring configPath) {
-    const char *path_chars = env->GetStringUTFChars(singboxPath, nullptr);
-    std::string path = path_chars != nullptr ? path_chars : "";
-    if (path_chars != nullptr) {
-        env->ReleaseStringUTFChars(singboxPath, path_chars);
-    }
-
-    const char *config_chars = env->GetStringUTFChars(configPath, nullptr);
-    std::string config = config_chars != nullptr ? config_chars : "";
-    if (config_chars != nullptr) {
-        env->ReleaseStringUTFChars(configPath, config_chars);
-    }
-
-    return toKotlinResult(env, runSingboxShellFlow(path, config));
 }

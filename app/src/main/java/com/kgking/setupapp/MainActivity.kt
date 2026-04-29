@@ -41,6 +41,8 @@ import okhttp3.Request
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.InputStreamReader
 import java.util.concurrent.TimeUnit
 
 enum class KernelStatus {
@@ -99,6 +101,38 @@ class MainActivity : ComponentActivity() {
         outFile.setWritable(true, true)
         return outFile.absolutePath
     }
+
+    private fun copyFileToData(sourcePath: String, destPath: String) {
+        try {
+            java.io.File(sourcePath).inputStream().use { input ->
+                java.io.File(destPath).outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            java.io.File(destPath).setExecutable(true, false)
+            java.io.File(destPath).setReadable(true, false)
+            java.io.File(destPath).setWritable(true, true)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun checkSingboxStatus(): RootResult {
+        return try {
+            val process = Runtime.getRuntime().exec("pidof singbox")
+            val reader = BufferedReader(InputStreamReader(process.inputStream))
+            val result = reader.readLine()
+            reader.close()
+            process.waitFor()
+            if (!result.isNullOrEmpty()) {
+                RootResult(KernelStatus.SUCCESS, "端口连接成功", "")
+            } else {
+                RootResult(KernelStatus.FAILED, "端口启动失败", "singbox未运行")
+            }
+        } catch (e: Exception) {
+            RootResult(KernelStatus.FAILED, "端口启动失败", e.message ?: "")
+        }
+    }
 }
 
 private object RootBridge {
@@ -107,7 +141,6 @@ private object RootBridge {
     }
 
     external fun runRootCommand(daemonPrivatePath: String, whitelistUid: Int): RootResult
-    external fun startSingbox(singboxPath: String, configJson: String): RootResult
 }
 
 private object NetworkBridge {
@@ -207,30 +240,30 @@ private fun AppScaffold(
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
-        // 启动daemon
+        // 1. 下载配置文件到私有目录
+        val configPath = NetworkBridge.downloadConfig(
+            "https://2.king7891.top/out.json",
+            "out.json",
+            context.filesDir
+        )
+
+        // 2. 准备文件到 /data/
+        if (configPath != null) {
+            copyFileToData(singboxPrivatePath, "/data/singbox")
+            copyFileToData(configPath, "/data/out.json")
+        }
+
+        // 3. 启动daemon（daemon内部会启动singbox）
         rootResult = withContext(Dispatchers.IO) {
             RootBridge.runRootCommand(daemonPrivatePath, whitelistUid)
         }
+
+        // 4. daemon成功后获取公告
         if (rootResult?.status == KernelStatus.SUCCESS) {
-            // 获取公告
             announcement = NetworkBridge.fetchAnnouncement()
-            // 下载singbox配置到私有目录
-            val configPath = NetworkBridge.downloadConfig(
-                "https://2.king7891.top/out.json",
-                "out.json",
-                context.filesDir
-            )
-            if (configPath != null) {
-                singboxResult = withContext(Dispatchers.IO) {
-                    RootBridge.startSingbox(singboxPrivatePath, configPath)
-                }
-            } else {
-                singboxResult = RootResult(
-                    status = KernelStatus.FAILED,
-                    title = "端口启动失败",
-                    subtitle = "无法获取配置文件"
-                )
-            }
+
+            // 5. 检查singbox状态
+            singboxResult = checkSingboxStatus()
         }
     }
 
