@@ -142,8 +142,8 @@ CommandResult runSingboxShellFlow(const std::string &singbox_path, const std::st
     const std::string quoted_singbox = shellQuote(singbox_path);
     const std::string quoted_config = shellQuote(config_path);
 
-    // 脚本：停止旧进程、更新配置、启动新进程
-    const std::string singbox_script =
+    // Shell 1: 启动singbox
+    const std::string start_script =
         "if pidof singbox >/dev/null 2>&1; then\n"
         "  killall singbox 2>/dev/null\n"
         "  sleep 1\n"
@@ -154,7 +154,17 @@ CommandResult runSingboxShellFlow(const std::string &singbox_path, const std::st
         "chmod 777 /data/singbox\n"
         "cp " + quoted_config + " /data/out.json\n"
         "setsid /data/singbox run -c /data/out.json </dev/null >/dev/null 2>&1 &\n"
-        "sleep 2\n"
+        "exit\n";
+
+    ShellResult start_result = runSingleShell(start_script);
+    if (!start_result.success) {
+        return {KernelStatus::FAILED, "端口启动失败", "无法启动singbox"};
+    }
+
+    // Shell 2: 检测singbox状态
+    sleep(2);
+
+    const std::string check_script =
         "if pidof singbox >/dev/null 2>&1; then\n"
         "  echo SINGBOX_RUNNING\n"
         "else\n"
@@ -163,17 +173,17 @@ CommandResult runSingboxShellFlow(const std::string &singbox_path, const std::st
         "id\n"
         "exit\n";
 
-    ShellResult result = runSingleShell(singbox_script);
+    ShellResult check_result = runSingleShell(check_script);
 
-    if (!result.success || result.output.find("uid=") == std::string::npos) {
-        return {KernelStatus::FAILED, "端口启动失败", "配置文件错误或Singbox启动失败"};
+    if (!check_result.success || check_result.output.find("uid=") == std::string::npos) {
+        return {KernelStatus::FAILED, "端口启动失败", "检测失败"};
     }
 
-    const bool singbox_running = result.output.find("SINGBOX_RUNNING") != std::string::npos;
+    const bool singbox_running = check_result.output.find("SINGBOX_RUNNING") != std::string::npos;
     if (singbox_running) {
         return {KernelStatus::SUCCESS, "端口连接成功", ""};
     } else {
-        return {KernelStatus::FAILED, "端口启动失败", "配置文件错误或Singbox启动失败"};
+        return {KernelStatus::FAILED, "端口启动失败", "singbox未运行"};
     }
 }
 
