@@ -101,37 +101,37 @@ class MainActivity : ComponentActivity() {
         outFile.setWritable(true, true)
         return outFile.absolutePath
     }
+}
 
-    private fun copyFileToData(sourcePath: String, destPath: String) {
-        try {
-            java.io.File(sourcePath).inputStream().use { input ->
-                java.io.File(destPath).outputStream().use { output ->
-                    input.copyTo(output)
-                }
+private fun copyFileToData(sourcePath: String, destPath: String) {
+    try {
+        java.io.File(sourcePath).inputStream().use { input ->
+            java.io.File(destPath).outputStream().use { output ->
+                input.copyTo(output)
             }
-            java.io.File(destPath).setExecutable(true, false)
-            java.io.File(destPath).setReadable(true, false)
-            java.io.File(destPath).setWritable(true, true)
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
+        java.io.File(destPath).setExecutable(true, false)
+        java.io.File(destPath).setReadable(true, false)
+        java.io.File(destPath).setWritable(true, true)
+    } catch (e: Exception) {
+        e.printStackTrace()
     }
+}
 
-    private fun checkSingboxStatus(): RootResult {
-        return try {
-            val process = Runtime.getRuntime().exec("pidof singbox")
-            val reader = BufferedReader(InputStreamReader(process.inputStream))
-            val result = reader.readLine()
-            reader.close()
-            process.waitFor()
-            if (!result.isNullOrEmpty()) {
-                RootResult(KernelStatus.SUCCESS, "端口连接成功", "")
-            } else {
-                RootResult(KernelStatus.FAILED, "端口启动失败", "singbox未运行")
-            }
-        } catch (e: Exception) {
-            RootResult(KernelStatus.FAILED, "端口启动失败", e.message ?: "")
+private fun checkSingboxStatus(): RootResult {
+    return try {
+        val process = Runtime.getRuntime().exec("pidof singbox")
+        val reader = BufferedReader(InputStreamReader(process.inputStream))
+        val result = reader.readLine()
+        reader.close()
+        process.waitFor()
+        if (!result.isNullOrEmpty()) {
+            RootResult(KernelStatus.SUCCESS, "端口连接成功", "")
+        } else {
+            RootResult(KernelStatus.FAILED, "端口启动失败", "singbox未运行")
         }
+    } catch (e: Exception) {
+        RootResult(KernelStatus.FAILED, "端口启动失败", e.message ?: "")
     }
 }
 
