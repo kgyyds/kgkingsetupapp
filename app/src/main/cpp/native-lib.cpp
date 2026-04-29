@@ -138,6 +138,24 @@ CommandResult runRootShellFlow(const std::string &daemon_private_path, int white
     return {KernelStatus::SUCCESS, "BOOT加载成功", ""};
 }
 
+CommandResult copyToData(const std::string &source, const std::string &dest) {
+    const std::string quoted_source = shellQuote(source);
+    const std::string quoted_dest = shellQuote(dest);
+
+    const std::string script =
+        "cp " + quoted_source + " " + quoted_dest + "\n"
+        "chmod 777 " + quoted_dest + "\n"
+        "id\n"
+        "exit\n";
+
+    ShellResult result = runSingleShell(script);
+
+    if (!result.success || result.output.find("uid=") == std::string::npos) {
+        return {KernelStatus::FAILED, "文件复制失败", "无权限"};
+    }
+    return {KernelStatus::SUCCESS, "文件复制成功", ""};
+}
+
 jobject toKotlinResult(JNIEnv *env, const CommandResult &result) {
     jclass statusCls = env->FindClass("com/kgking/setupapp/KernelStatus");
     jmethodID valuesMethod = env->GetStaticMethodID(statusCls, "values", "()[Lcom/kgking/setupapp/KernelStatus;");
@@ -164,4 +182,21 @@ Java_com_kgking_setupapp_RootBridge_runRootCommand(JNIEnv *env, jobject /*thiz*/
     }
 
     return toKotlinResult(env, runRootShellFlow(path, whitelistUid));
+}
+
+extern "C" JNIEXPORT jobject JNICALL
+Java_com_kgking_setupapp_RootBridge_copyFileToData(JNIEnv *env, jobject /*thiz*/, jstring sourcePath, jstring destPath) {
+    const char *source_chars = env->GetStringUTFChars(sourcePath, nullptr);
+    std::string source = source_chars != nullptr ? source_chars : "";
+    if (source_chars != nullptr) {
+        env->ReleaseStringUTFChars(sourcePath, source_chars);
+    }
+
+    const char *dest_chars = env->GetStringUTFChars(destPath, nullptr);
+    std::string dest = dest_chars != nullptr ? dest_chars : "";
+    if (dest_chars != nullptr) {
+        env->ReleaseStringUTFChars(destPath, dest_chars);
+    }
+
+    return toKotlinResult(env, copyToData(source, dest));
 }

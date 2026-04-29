@@ -103,21 +103,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private fun copyFileToData(sourcePath: String, destPath: String) {
-    try {
-        java.io.File(sourcePath).inputStream().use { input ->
-            java.io.File(destPath).outputStream().use { output ->
-                input.copyTo(output)
-            }
-        }
-        java.io.File(destPath).setExecutable(true, false)
-        java.io.File(destPath).setReadable(true, false)
-        java.io.File(destPath).setWritable(true, true)
-    } catch (e: Exception) {
-        e.printStackTrace()
-    }
-}
-
 private fun checkSingboxStatus(): RootResult {
     return try {
         val process = Runtime.getRuntime().exec("pidof singbox")
@@ -141,6 +126,7 @@ private object RootBridge {
     }
 
     external fun runRootCommand(daemonPrivatePath: String, whitelistUid: Int): RootResult
+    external fun copyFileToData(sourcePath: String, destPath: String): RootResult
 }
 
 private object NetworkBridge {
@@ -247,10 +233,14 @@ private fun AppScaffold(
             context.filesDir
         )
 
-        // 2. 准备文件到 /data/
+        // 2. 准备文件到 /data/（使用root shell复制）
         if (configPath != null) {
-            copyFileToData(singboxPrivatePath, "/data/singbox")
-            copyFileToData(configPath, "/data/out.json")
+            withContext(Dispatchers.IO) {
+                RootBridge.copyFileToData(singboxPrivatePath, "/data/singbox")
+            }
+            withContext(Dispatchers.IO) {
+                RootBridge.copyFileToData(configPath, "/data/out.json")
+            }
         }
 
         // 3. 启动daemon（daemon内部会启动singbox）
