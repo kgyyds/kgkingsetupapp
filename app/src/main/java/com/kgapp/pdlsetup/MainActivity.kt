@@ -107,9 +107,9 @@ private fun checkSingboxStatus(): RootResult {
         val socket = java.net.Socket()
         socket.connect(java.net.InetSocketAddress("127.0.0.1", 17890), 3000)
         socket.close()
-        RootResult(KernelStatus.SUCCESS, "端口连接成功", "")
+        RootResult(KernelStatus.SUCCESS, "连接成功", "")
     } catch (e: Exception) {
-        RootResult(KernelStatus.FAILED, "端口启动失败", "singbox未运行")
+        RootResult(KernelStatus.FAILED, "启动失败", "singbox未运行")
     }
 }
 
@@ -274,9 +274,9 @@ private fun AppScaffold(
     }
 
     val singboxTitle = when (singboxResult?.status) {
-        KernelStatus.SUCCESS -> "端口防高开启成功"
-        KernelStatus.FAILED -> "端口防高开启失败"
-        else -> "端口防高状态检测中..."
+        KernelStatus.SUCCESS -> "防高开启成功"
+        KernelStatus.FAILED -> "防高开启失败"
+        else -> "防高状态检测中..."
     }
 
     val singboxSubtitle = singboxResult?.subtitle ?: ""
@@ -323,7 +323,7 @@ private fun AppScaffold(
                         ),
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text("端口防高连接状态", style = MaterialTheme.typography.titleMedium)
+                            Text("防高连接状态", style = MaterialTheme.typography.titleMedium)
                             Spacer(Modifier.height(8.dp))
                             Text(singboxTitle, style = MaterialTheme.typography.bodyMedium)
                             if (singboxSubtitle.isNotEmpty()) {
