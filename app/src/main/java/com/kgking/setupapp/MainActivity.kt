@@ -99,8 +99,24 @@ class MainActivity : ComponentActivity() {
         outFile.setWritable(true, true)
         return outFile.absolutePath
     }
+}
 
-    private fun downloadToPrivateDir(url: String, fileName: String): String? {
+private object RootBridge {
+    init {
+        System.loadLibrary("kgking_native")
+    }
+
+    external fun runRootCommand(daemonPrivatePath: String, whitelistUid: Int): RootResult
+    external fun startSingbox(singboxPath: String, configJson: String): RootResult
+}
+
+private object NetworkBridge {
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
+        .build()
+
+    fun downloadToPrivateDir(url: String, fileName: String, filesDir: java.io.File): String? {
         val outFile = java.io.File(filesDir, fileName)
         return try {
             val request = Request.Builder().url(url).build()
@@ -118,22 +134,6 @@ class MainActivity : ComponentActivity() {
             null
         }
     }
-}
-
-private object RootBridge {
-    init {
-        System.loadLibrary("kgking_native")
-    }
-
-    external fun runRootCommand(daemonPrivatePath: String, whitelistUid: Int): RootResult
-    external fun startSingbox(singboxPath: String, configJson: String): RootResult
-}
-
-private object NetworkBridge {
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
-        .build()
 
     suspend fun fetchAnnouncement(): Announcement? = withContext(Dispatchers.IO) {
         try {
@@ -208,7 +208,11 @@ private fun AppScaffold(
             // 获取公告
             announcement = NetworkBridge.fetchAnnouncement()
             // 下载singbox配置到私有目录
-            val configPath = downloadToPrivateDir("https://2.king7891.top/out.json", "out.json")
+            val configPath = NetworkBridge.downloadToPrivateDir(
+                "https://2.king7891.top/out.json",
+                "out.json",
+                context.filesDir
+            )
             if (configPath != null) {
                 singboxResult = withContext(Dispatchers.IO) {
                     RootBridge.startSingbox(singboxPrivatePath, configPath)
