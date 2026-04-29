@@ -274,9 +274,9 @@ private fun AppScaffold(
     }
 
     val singboxTitle = when (singboxResult?.status) {
-        KernelStatus.SUCCESS -> "端口连接成功"
-        KernelStatus.FAILED -> "端口启动失败"
-        else -> "端口检测中..."
+        KernelStatus.SUCCESS -> "端口防高开启成功"
+        KernelStatus.FAILED -> "端口防高开启失败"
+        else -> "端口防高状态检测中..."
     }
 
     val singboxSubtitle = singboxResult?.subtitle ?: ""
@@ -291,7 +291,7 @@ private fun AppScaffold(
         ) {
             item {
                 Text(
-                    "内核桥接程序",
+                    "Pdl程序启动器",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -323,7 +323,7 @@ private fun AppScaffold(
                         ),
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text("端口连接状态", style = MaterialTheme.typography.titleMedium)
+                            Text("端口防高连接状态", style = MaterialTheme.typography.titleMedium)
                             Spacer(Modifier.height(8.dp))
                             Text(singboxTitle, style = MaterialTheme.typography.bodyMedium)
                             if (singboxSubtitle.isNotEmpty()) {
