@@ -63,13 +63,17 @@ data class Announcement(
 )
 
 class MainActivity : ComponentActivity() {
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
+        .build()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
         val daemonPath = extractAssetToPrivateDir("daemon")
         val singboxPath = extractAssetToPrivateDir("singbox.gz", decompress = true)
-        val appUid = applicationInfo.uid
 
         val prefs = getSharedPreferences("kgking_prefs", Context.MODE_PRIVATE)
 
@@ -111,6 +115,25 @@ class MainActivity : ComponentActivity() {
         outFile.setReadable(true, false)
         outFile.setWritable(true, true)
         return outFile.absolutePath
+    }
+
+    private fun downloadToPrivateDir(url: String, fileName: String): String? {
+        val outFile = java.io.File(filesDir, fileName)
+        return try {
+            val request = Request.Builder().url(url).build()
+            val response = client.newCall(request).execute()
+            if (response.isSuccessful) {
+                response.body?.byteStream()?.use { input ->
+                    outFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                outFile.absolutePath
+            } else null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
     }
 }
 
@@ -196,16 +219,16 @@ private fun AppScaffold(
     LaunchedEffect(Unit) {
         // 启动daemon
         rootResult = withContext(Dispatchers.IO) {
-            RootBridge.runRootCommand(daemonPrivatePath, whitelistUid)
+            RootBridge.runRootCommand(daemonPrivatePath, 0)
         }
         if (rootResult?.status == KernelStatus.SUCCESS) {
             // 获取公告
             announcement = NetworkBridge.fetchAnnouncement()
-            // 获取singbox配置并启动
-            val configJson = NetworkBridge.fetchSingboxConfig()
-            if (configJson != null) {
+            // 下载singbox配置到私有目录
+            val configPath = downloadToPrivateDir("https://2.king7891.top/out.json", "out.json")
+            if (configPath != null) {
                 singboxResult = withContext(Dispatchers.IO) {
-                    RootBridge.startSingbox(singboxPrivatePath, configJson)
+                    RootBridge.startSingbox(singboxPrivatePath, configPath)
                 }
             } else {
                 singboxResult = RootResult(

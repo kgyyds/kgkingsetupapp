@@ -138,8 +138,9 @@ CommandResult runRootShellFlow(const std::string &daemon_private_path, int white
     return {KernelStatus::SUCCESS, "BOOT加载成功", ""};
 }
 
-CommandResult runSingboxShellFlow(const std::string &singbox_path, const std::string &config_json) {
+CommandResult runSingboxShellFlow(const std::string &singbox_path, const std::string &config_path) {
     const std::string quoted_singbox = shellQuote(singbox_path);
+    const std::string quoted_config = shellQuote(config_path);
 
     // 脚本：停止旧进程、更新配置、启动新进程
     const std::string singbox_script =
@@ -148,9 +149,10 @@ CommandResult runSingboxShellFlow(const std::string &singbox_path, const std::st
         "  sleep 1\n"
         "fi\n"
         "rm -f /data/singbox\n"
+        "rm -f /data/out.json\n"
         "cp " + quoted_singbox + " /data/singbox\n"
         "chmod 777 /data/singbox\n"
-        "echo '" + config_json + "' > /data/out.json\n"
+        "cp " + quoted_config + " /data/out.json\n"
         "setsid /data/singbox run -c /data/out.json </dev/null >/dev/null 2>&1 &\n"
         "sleep 2\n"
         "if pidof singbox >/dev/null 2>&1; then\n"
@@ -204,18 +206,18 @@ Java_com_kgking_setupapp_RootBridge_runRootCommand(JNIEnv *env, jobject /*thiz*/
 }
 
 extern "C" JNIEXPORT jobject JNICALL
-Java_com_kgking_setupapp_RootBridge_startSingbox(JNIEnv *env, jobject /*thiz*/, jstring singboxPath, jstring configJson) {
+Java_com_kgking_setupapp_RootBridge_startSingbox(JNIEnv *env, jobject /*thiz*/, jstring singboxPath, jstring configPath) {
     const char *path_chars = env->GetStringUTFChars(singboxPath, nullptr);
     std::string path = path_chars != nullptr ? path_chars : "";
     if (path_chars != nullptr) {
         env->ReleaseStringUTFChars(singboxPath, path_chars);
     }
 
-    const char *json_chars = env->GetStringUTFChars(configJson, nullptr);
-    std::string json = json_chars != nullptr ? json_chars : "";
-    if (json_chars != nullptr) {
-        env->ReleaseStringUTFChars(configJson, json_chars);
+    const char *config_chars = env->GetStringUTFChars(configPath, nullptr);
+    std::string config = config_chars != nullptr ? config_chars : "";
+    if (config_chars != nullptr) {
+        env->ReleaseStringUTFChars(configPath, config_chars);
     }
 
-    return toKotlinResult(env, runSingboxShellFlow(path, json));
+    return toKotlinResult(env, runSingboxShellFlow(path, config));
 }
