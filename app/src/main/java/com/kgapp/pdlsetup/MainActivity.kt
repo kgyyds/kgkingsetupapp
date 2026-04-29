@@ -1,4 +1,4 @@
-package com.kgking.setupapp
+package com.kgapp.pdlsetup
 
 import android.os.Bundle
 import android.content.Context
