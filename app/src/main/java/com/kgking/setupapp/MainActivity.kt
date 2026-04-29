@@ -244,8 +244,13 @@ private fun AppScaffold(
         if (rootResult?.status == KernelStatus.SUCCESS) {
             announcement = NetworkBridge.fetchAnnouncement()
 
-            // 5. 检查singbox状态
-            singboxResult = checkSingboxStatus()
+            // 等待2秒让singbox有时间启动
+            delay(2000)
+
+            // 5. 检查singbox状态（TCP连接检测）
+            singboxResult = withContext(Dispatchers.IO) {
+                checkSingboxStatus()
+            }
         }
     }
 
