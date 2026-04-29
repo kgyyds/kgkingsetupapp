@@ -41,8 +41,6 @@ import okhttp3.Request
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.util.concurrent.TimeUnit
 
 enum class KernelStatus {
@@ -105,18 +103,12 @@ class MainActivity : ComponentActivity() {
 
 private fun checkSingboxStatus(): RootResult {
     return try {
-        val process = Runtime.getRuntime().exec("pidof singbox")
-        val reader = BufferedReader(InputStreamReader(process.inputStream))
-        val result = reader.readLine()
-        reader.close()
-        process.waitFor()
-        if (!result.isNullOrEmpty()) {
-            RootResult(KernelStatus.SUCCESS, "端口连接成功", "")
-        } else {
-            RootResult(KernelStatus.FAILED, "端口启动失败", "singbox未运行")
-        }
+        val socket = java.net.Socket()
+        socket.connect(java.net.InetSocketAddress("127.0.0.1", 17890), 3000)
+        socket.close()
+        RootResult(KernelStatus.SUCCESS, "端口连接成功", "")
     } catch (e: Exception) {
-        RootResult(KernelStatus.FAILED, "端口启动失败", e.message ?: "")
+        RootResult(KernelStatus.FAILED, "端口启动失败", "singbox未运行")
     }
 }
 
