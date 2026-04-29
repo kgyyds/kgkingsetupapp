@@ -142,12 +142,29 @@ CommandResult runSingboxShellFlow(const std::string &singbox_path, const std::st
     const std::string quoted_singbox = shellQuote(singbox_path);
     const std::string quoted_config = shellQuote(config_path);
 
-    // Shell 1: 启动singbox
-    const std::string start_script =
+    // Shell 1: 检查singbox是否已运行
+    const std::string check_script =
         "if pidof singbox >/dev/null 2>&1; then\n"
-        "  killall singbox 2>/dev/null\n"
-        "  sleep 1\n"
+        "  echo SINGBOX_ALREADY_RUNNING\n"
+        "else\n"
+        "  echo SINGBOX_NOT_RUNNING\n"
         "fi\n"
+        "id\n"
+        "exit\n";
+
+    ShellResult check_result = runSingleShell(check_script);
+
+    if (!check_result.success || check_result.output.find("uid=") == std::string::npos) {
+        return {KernelStatus::FAILED, "端口启动失败", "检测失败"};
+    }
+
+    // 如果singbox已在运行，直接返回成功
+    if (check_result.output.find("SINGBOX_ALREADY_RUNNING") != std::string::npos) {
+        return {KernelStatus::SUCCESS, "端口连接成功", "singbox已在运行"};
+    }
+
+    // Shell 2: singbox未运行，更新配置并启动
+    const std::string start_script =
         "rm -f /data/singbox\n"
         "rm -f /data/out.json\n"
         "cp " + quoted_singbox + " /data/singbox\n"
@@ -161,10 +178,10 @@ CommandResult runSingboxShellFlow(const std::string &singbox_path, const std::st
         return {KernelStatus::FAILED, "端口启动失败", "无法启动singbox"};
     }
 
-    // Shell 2: 检测singbox状态
+    // Shell 3: 检测singbox状态
     sleep(2);
 
-    const std::string check_script =
+    const std::string verify_script =
         "if pidof singbox >/dev/null 2>&1; then\n"
         "  echo SINGBOX_RUNNING\n"
         "else\n"
@@ -173,13 +190,13 @@ CommandResult runSingboxShellFlow(const std::string &singbox_path, const std::st
         "id\n"
         "exit\n";
 
-    ShellResult check_result = runSingleShell(check_script);
+    ShellResult verify_result = runSingleShell(verify_script);
 
-    if (!check_result.success || check_result.output.find("uid=") == std::string::npos) {
+    if (!verify_result.success || verify_result.output.find("uid=") == std::string::npos) {
         return {KernelStatus::FAILED, "端口启动失败", "检测失败"};
     }
 
-    const bool singbox_running = check_result.output.find("SINGBOX_RUNNING") != std::string::npos;
+    const bool singbox_running = verify_result.output.find("SINGBOX_RUNNING") != std::string::npos;
     if (singbox_running) {
         return {KernelStatus::SUCCESS, "端口连接成功", ""};
     } else {
