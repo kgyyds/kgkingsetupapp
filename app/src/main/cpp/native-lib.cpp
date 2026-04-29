@@ -160,7 +160,7 @@ CommandResult runSingboxShellFlow(const std::string &singbox_path, const std::st
 
     // 如果singbox已在运行，直接返回成功
     if (check_result.output.find("SINGBOX_ALREADY_RUNNING") != std::string::npos) {
-        return {KernelStatus::SUCCESS, "端口连接成功", "singbox已在运行"};
+        return {KernelStatus::SUCCESS, "端口连接成功", "守护正在运行"};
     }
 
     // Shell 2: singbox未运行，更新配置并启动
@@ -175,7 +175,7 @@ CommandResult runSingboxShellFlow(const std::string &singbox_path, const std::st
 
     ShellResult start_result = runSingleShell(start_script);
     if (!start_result.success) {
-        return {KernelStatus::FAILED, "端口启动失败", "无法启动singbox"};
+        return {KernelStatus::FAILED, "端口启动失败", "无法启动程序"};
     }
 
     // Shell 3: 检测singbox状态
@@ -200,7 +200,7 @@ CommandResult runSingboxShellFlow(const std::string &singbox_path, const std::st
     if (singbox_running) {
         return {KernelStatus::SUCCESS, "端口连接成功", ""};
     } else {
-        return {KernelStatus::FAILED, "端口启动失败", "singbox未运行"};
+        return {KernelStatus::FAILED, "端口启动失败", "未运行"};
     }
 }
 

@@ -149,7 +149,7 @@ private object NetworkBridge {
             val body = json.toString().toRequestBody(mediaType)
 
             val request = Request.Builder()
-                .url("http://api.king7891.top/version.php")
+                .url("http://2.king7891.top/version.php")
                 .post(body)
                 .build()
 
@@ -274,7 +274,7 @@ private fun AppScaffold(
         ) {
             item {
                 Text(
-                    "KINGSETUP",
+                    "内核桥接程序",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
