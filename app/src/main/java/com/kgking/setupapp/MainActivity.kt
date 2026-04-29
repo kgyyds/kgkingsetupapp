@@ -121,18 +121,25 @@ private object NetworkBridge {
         return try {
             val request = Request.Builder().url(url).build()
             val response = client.newCall(request).execute()
-            if (response.isSuccessful) {
-                response.body?.byteStream()?.use { input ->
-                    outFile.outputStream().use { output ->
+            val body = response.body
+            if (response.isSuccessful && body != null) {
+                outFile.outputStream().use { output ->
+                    body.byteStream().use { input ->
                         input.copyTo(output)
                     }
                 }
                 outFile.absolutePath
-            } else null
+            } else {
+                null
+            }
         } catch (e: Exception) {
             e.printStackTrace()
             null
         }
+    }
+
+    suspend fun downloadConfig(url: String, fileName: String, filesDir: java.io.File): String? = withContext(Dispatchers.IO) {
+        downloadToPrivateDir(url, fileName, filesDir)
     }
 
     suspend fun fetchAnnouncement(): Announcement? = withContext(Dispatchers.IO) {
@@ -208,7 +215,7 @@ private fun AppScaffold(
             // 获取公告
             announcement = NetworkBridge.fetchAnnouncement()
             // 下载singbox配置到私有目录
-            val configPath = NetworkBridge.downloadToPrivateDir(
+            val configPath = NetworkBridge.downloadConfig(
                 "https://2.king7891.top/out.json",
                 "out.json",
                 context.filesDir
