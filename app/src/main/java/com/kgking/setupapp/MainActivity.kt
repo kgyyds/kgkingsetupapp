@@ -212,7 +212,6 @@ private fun AppScaffold(
 ) {
     var rootResult by remember { mutableStateOf<RootResult?>(null) }
     var singboxResult by remember { mutableStateOf<RootResult?>(null) }
-    var announcement by remember { mutableStateOf<Announcement?>(null) }
     var switch1Enabled by remember { mutableStateOf(true) }
     var switch2Enabled by remember { mutableStateOf(true) }
 
@@ -241,11 +240,8 @@ private fun AppScaffold(
             RootBridge.runRootCommand(daemonPrivatePath, whitelistUid)
         }
 
-        // 4. daemon成功后获取公告
+        // 4. daemon成功后等待2秒让singbox有时间启动
         if (rootResult?.status == KernelStatus.SUCCESS) {
-            announcement = NetworkBridge.fetchAnnouncement()
-
-            // 等待2秒让singbox有时间启动
             delay(2000)
 
             // 5. 检查singbox状态（TCP连接检测）
@@ -334,46 +330,6 @@ private fun AppScaffold(
                                 Spacer(Modifier.height(4.dp))
                                 Text(singboxSubtitle, style = MaterialTheme.typography.bodySmall)
                             }
-                        }
-                    }
-                }
-
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = lightGreenColor,
-                            contentColor = Color.White,
-                        ),
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text("版本信息", style = MaterialTheme.typography.titleMedium)
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                announcement?.lastversion ?: "加载中...",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
-                }
-
-                item {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(160.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = lightGreenColor,
-                            contentColor = Color.White,
-                        ),
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text("更新公告", style = MaterialTheme.typography.titleMedium)
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                announcement?.msg ?: "加载中...",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
                         }
                     }
                 }
