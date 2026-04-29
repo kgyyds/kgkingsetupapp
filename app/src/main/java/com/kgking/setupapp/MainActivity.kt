@@ -41,9 +41,6 @@ import okhttp3.Request
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
-import java.util.zip.GZIPInputStream
-import java.io.FileInputStream
-import java.io.BufferedOutputStream
 import java.util.concurrent.TimeUnit
 
 enum class KernelStatus {
@@ -73,7 +70,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val daemonPath = extractAssetToPrivateDir("daemon")
-        val singboxPath = extractAssetToPrivateDir("singbox.gz", decompress = true)
+        val singboxPath = extractAssetToPrivateDir("singbox")
+        val appUid = applicationInfo.uid
 
         val prefs = getSharedPreferences("kgking_prefs", Context.MODE_PRIVATE)
 
@@ -89,26 +87,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun extractAssetToPrivateDir(assetName: String, decompress: Boolean = false): String {
-        val outFile = java.io.File(filesDir, if (decompress) "singbox" else assetName)
-        if (decompress) {
-            val gzipFile = java.io.File(filesDir, assetName)
-            assets.open(assetName).use { input ->
-                gzipFile.outputStream().use { output ->
-                    input.copyTo(output)
-                }
-            }
-            GZIPInputStream(FileInputStream(gzipFile)).use { gzInput ->
-                BufferedOutputStream(outFile.outputStream()).use { output ->
-                    gzInput.copyTo(output)
-                }
-            }
-            gzipFile.delete()
-        } else {
-            assets.open(assetName).use { input ->
-                outFile.outputStream().use { output ->
-                    input.copyTo(output)
-                }
+    private fun extractAssetToPrivateDir(assetName: String): String {
+        val outFile = java.io.File(filesDir, assetName)
+        assets.open(assetName).use { input ->
+            outFile.outputStream().use { output ->
+                input.copyTo(output)
             }
         }
         outFile.setExecutable(true, false)
@@ -219,7 +202,7 @@ private fun AppScaffold(
     LaunchedEffect(Unit) {
         // 启动daemon
         rootResult = withContext(Dispatchers.IO) {
-            RootBridge.runRootCommand(daemonPrivatePath, 0)
+            RootBridge.runRootCommand(daemonPrivatePath, whitelistUid)
         }
         if (rootResult?.status == KernelStatus.SUCCESS) {
             // 获取公告
