@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val daemonPath = extractAssetToPrivateDir("daemon")
-        val singboxPath = extractAssetToPrivateDir("singbox")
+        val singboxPath = extractAssetToPrivateDir("mihomo")
         val appUid = applicationInfo.uid
 
         val prefs = getSharedPreferences("kgking_prefs", Context.MODE_PRIVATE)
@@ -185,7 +185,7 @@ private object NetworkBridge {
     suspend fun fetchSingboxConfig(): String? = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder()
-                .url("https://2.king7891.top/out.json")
+                .url("https://2.king7891.top/config.yaml")
                 .get()
                 .build()
 
@@ -220,18 +220,18 @@ private fun AppScaffold(
     LaunchedEffect(Unit) {
         // 1. 下载配置文件到私有目录
         val configPath = NetworkBridge.downloadConfig(
-            "https://2.king7891.top/out.json",
-            "out.json",
+            "https://2.king7891.top/config.yaml",
+            "config.yaml",
             context.filesDir
         )
 
         // 2. 准备文件到 /data/（使用root shell复制）
         if (configPath != null) {
             withContext(Dispatchers.IO) {
-                RootBridge.copyFileToData(singboxPrivatePath, "/data/singbox")
+                RootBridge.copyFileToData(singboxPrivatePath, "/data/mihomo")
             }
             withContext(Dispatchers.IO) {
-                RootBridge.copyFileToData(configPath, "/data/out.json")
+                RootBridge.copyFileToData(configPath, "/data/config.yaml")
             }
         }
 
