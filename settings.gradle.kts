@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "kgkingsetupapp"
+rootProject.name = "PDLSetupApp"
 include(":app")

@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.kgking.setupapp"
+    namespace = "com.kgapp.pdlsetup"
     compileSdk = 34
     ndkVersion = "26.3.11579264"
 
@@ -18,7 +18,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.kgking.setupapp"
+        applicationId = "com.kgapp.pdlsetup"
         minSdk = 26
         targetSdk = 34
         versionCode = 2

@@ -8,4 +8,7 @@
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">api.king7891.top</domain>
     </domain-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">2.king7891.top</domain>
+    </domain-config>
 </network-security-config>
