@@ -157,13 +157,13 @@ CommandResult copyToData(const std::string &source, const std::string &dest) {
 }
 
 jobject toKotlinResult(JNIEnv *env, const CommandResult &result) {
-    jclass statusCls = env->FindClass("com/kgapp/pdlsetup/KernelStatus");
-    jmethodID valuesMethod = env->GetStaticMethodID(statusCls, "values", "()[Lcom/kgapp/pdlsetup/KernelStatus;");
+    jclass statusCls = env->FindClass("com/kgking/setupapp/KernelStatus");
+    jmethodID valuesMethod = env->GetStaticMethodID(statusCls, "values", "()[Lcom/kgking/setupapp/KernelStatus;");
     jobjectArray statusValues = static_cast<jobjectArray>(env->CallStaticObjectMethod(statusCls, valuesMethod));
     jobject statusObj = env->GetObjectArrayElement(statusValues, static_cast<jsize>(result.status));
 
-    jclass resultCls = env->FindClass("com/kgapp/pdlsetup/RootResult");
-    jmethodID ctor = env->GetMethodID(resultCls, "<init>", "(Lcom/kgapp/pdlsetup/KernelStatus;Ljava/lang/String;Ljava/lang/String;)V");
+    jclass resultCls = env->FindClass("com/kgking/setupapp/RootResult");
+    jmethodID ctor = env->GetMethodID(resultCls, "<init>", "(Lcom/kgking/setupapp/KernelStatus;Ljava/lang/String;Ljava/lang/String;)V");
 
     jstring title = env->NewStringUTF(result.title.c_str());
     jstring subtitle = env->NewStringUTF(result.subtitle.c_str());
@@ -174,7 +174,7 @@ jobject toKotlinResult(JNIEnv *env, const CommandResult &result) {
 } // namespace
 
 extern "C" JNIEXPORT jobject JNICALL
-Java_com_kgapp_pdlsetup_RootBridge_runRootCommand(JNIEnv *env, jobject /*thiz*/, jstring daemonPrivatePath, jint whitelistUid) {
+Java_com_kgking_setupapp_RootBridge_runRootCommand(JNIEnv *env, jobject /*thiz*/, jstring daemonPrivatePath, jint whitelistUid) {
     const char *path_chars = env->GetStringUTFChars(daemonPrivatePath, nullptr);
     std::string path = path_chars != nullptr ? path_chars : "";
     if (path_chars != nullptr) {
@@ -185,7 +185,7 @@ Java_com_kgapp_pdlsetup_RootBridge_runRootCommand(JNIEnv *env, jobject /*thiz*/,
 }
 
 extern "C" JNIEXPORT jobject JNICALL
-Java_com_kgapp_pdlsetup_RootBridge_copyFileToData(JNIEnv *env, jobject /*thiz*/, jstring sourcePath, jstring destPath) {
+Java_com_kgking_setupapp_RootBridge_copyFileToData(JNIEnv *env, jobject /*thiz*/, jstring sourcePath, jstring destPath) {
     const char *source_chars = env->GetStringUTFChars(sourcePath, nullptr);
     std::string source = source_chars != nullptr ? source_chars : "";
     if (source_chars != nullptr) {

@@ -1,4 +1,4 @@
-package com.kgapp.pdlsetup
+package com.kgking.setupapp
 
 import android.os.Bundle
 import android.content.Context
@@ -161,7 +161,7 @@ private object NetworkBridge {
             val body = json.toString().toRequestBody(mediaType)
 
             val request = Request.Builder()
-                .url("http://2.king7891.top/version.php")
+                .url("http://api.king7891.top/version.php")
                 .post(body)
                 .build()
 
@@ -185,7 +185,7 @@ private object NetworkBridge {
     suspend fun fetchSingboxConfig(): String? = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder()
-                .url("https://2.king7891.top/config.yaml")
+                .url("https://api.king7891.top/config.yaml")
                 .get()
                 .build()
 
@@ -291,7 +291,7 @@ private fun AppScaffold(
         ) {
             item {
                 Text(
-                    "Pdl程序启动器",
+                    "雷蛇程序启动器",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
