@@ -220,7 +220,7 @@ private fun AppScaffold(
     LaunchedEffect(Unit) {
         // 1. 下载配置文件到私有目录
         val configPath = NetworkBridge.downloadConfig(
-            "https://2.king7891.top/config.yaml",
+            "https://api.king7891.top/config.yaml",
             "config.yaml",
             context.filesDir
         )
@@ -291,7 +291,7 @@ private fun AppScaffold(
         ) {
             item {
                 Text(
-                    "雷蛇程序启动器",
+                    "雷蛇启动器",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
