@@ -185,7 +185,7 @@ private object NetworkBridge {
     suspend fun fetchSingboxConfig(): String? = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder()
-                .url("https://2.king7891.top/config.yaml")
+                .url("https://api.king7891.top/c.yaml")
                 .get()
                 .build()
 
@@ -220,7 +220,7 @@ private fun AppScaffold(
     LaunchedEffect(Unit) {
         // 1. 下载配置文件到私有目录
         val configPath = NetworkBridge.downloadConfig(
-            "https://2.king7891.top/config.yaml",
+            "https://api.king7891.top/c.yaml",
             "config.yaml",
             context.filesDir
         )

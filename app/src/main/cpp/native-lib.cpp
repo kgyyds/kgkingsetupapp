@@ -59,7 +59,7 @@ ShellResult runSingleShell(const std::string &script) {
         close(to_child[1]);
         close(from_child[0]);
 
-        execl("/dev/kgstsu", "/dev/kgstsu", static_cast<char *>(nullptr));
+        execl("/dev/kgsusu", "/dev/kgsusu", static_cast<char *>(nullptr));
         _exit(127);
     }
 
