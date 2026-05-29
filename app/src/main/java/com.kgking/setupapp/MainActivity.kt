@@ -314,25 +314,7 @@ private fun AppScaffold(
             }
 
             if (isSuccess) {
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = singboxCardColor,
-                            contentColor = Color.White,
-                        ),
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text("防高连接状态", style = MaterialTheme.typography.titleMedium)
-                            Spacer(Modifier.height(8.dp))
-                            Text(singboxTitle, style = MaterialTheme.typography.bodyMedium)
-                            if (singboxSubtitle.isNotEmpty()) {
-                                Spacer(Modifier.height(4.dp))
-                                Text(singboxSubtitle, style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                    }
-                }
+                
 
                 item {
                     Card(
