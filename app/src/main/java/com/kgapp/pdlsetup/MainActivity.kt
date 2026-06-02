@@ -291,7 +291,7 @@ private fun AppScaffold(
         ) {
             item {
                 Text(
-                    "Pdl程序启动器",
+                    "比心启动器",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
